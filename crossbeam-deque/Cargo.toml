@@ -18,10 +18,17 @@ categories = ["algorithms", "concurrency", "data-structures"]
 [dependencies.crossbeam-epoch]
 version = "0.7"
 path = "../crossbeam-epoch"
+default-features = false
 
 [dependencies.crossbeam-utils]
 version = "0.6"
 path = "../crossbeam-utils"
+default-features = false
 
 [dev-dependencies]
 rand = "0.6"
+
+[features]
+default = ["std"]
+std = ["crossbeam-utils/std", "crossbeam-epoch/std"]
+nightly = ["crossbeam-utils/nightly", "crossbeam-epoch/nightly"]

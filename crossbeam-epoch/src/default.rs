@@ -34,14 +34,18 @@ pub fn default_collector() -> &'static Collector {
     &COLLECTOR
 }
 
+/// Runs a closure with the current thread's handle.
 #[inline]
-fn with_handle<F, R>(mut f: F) -> R
+pub fn with_handle<F, R>(f: F) -> R
 where
-    F: FnMut(&LocalHandle) -> R,
+    F: FnOnce(&LocalHandle) -> R,
 {
+    // hack around the FnMut requirement when the closure is used in both the
+    // try_with and unwrap_or_else calls.
+    let mut closure = Some(f);
     HANDLE
-        .try_with(|h| f(h))
-        .unwrap_or_else(|_| f(&COLLECTOR.register()))
+        .try_with(|h| closure.take().unwrap()(h))
+        .unwrap_or_else(|_| closure.take().unwrap()(&COLLECTOR.register()))
 }
 
 #[cfg(test)]
@@ -70,6 +74,7 @@ mod tests {
                 super::pin();
                 // At thread exit, `HANDLE` gets dropped first and `FOO` second.
             });
-        }).unwrap();
+        })
+        .unwrap();
     }
 }
