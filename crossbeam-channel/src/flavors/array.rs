@@ -16,6 +16,7 @@
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 use std::mem;
+use std::process;
 use std::ptr;
 use std::sync::atomic::{self, AtomicUsize, Ordering};
 use std::time::Instant;
@@ -99,23 +100,23 @@ pub struct Channel<T> {
 
 impl<T> Channel<T> {
     /// Creates a bounded channel of capacity `cap`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the capacity is not in the range `1 ..= usize::max_value() / 4`.
     pub fn with_capacity(cap: usize) -> Self {
         assert!(cap > 0, "capacity must be positive");
 
-        // Make sure there are at least two most significant bits: one to encode laps and one more
-        // to indicate that the channel is disconnected. If we can't reserve two bits, then panic.
-        // In that case, the buffer is likely too large to allocate anyway.
-        let cap_limit = usize::max_value() / 4;
-        assert!(
-            cap <= cap_limit,
-            "channel capacity is too large: {} > {}",
-            cap,
-            cap_limit
-        );
+        // Head and tail indices must have at least two most significant bits reserved: one to
+        // encode laps and one more to indicate that the channel is disconnected. However, note
+        // that if `cap > usize::max_value() / 4`, then buffer allocation should fail anyway. Since
+        // every slot contains an `AtomicUsize`, we cannot allocate extremely large buffers even
+        // when `T` is a zero-sized type.
+        //
+        // We could in theory overshoot that limit on 8-bit and 16-bit platforms provided they have
+        // `libstd` in the first place, `size_of::<T>() <= 1`, the capacity is unreasonably large,
+        // and the allocator managed to make such a large allocation in such a constrained
+        // environment. It is unlikely all of that will ever be true. But, as a pedantic safety
+        // measure, we make a check anyway and abort if it doesn't pass.
+        if cap > usize::max_value() / 4 {
+            process::abort();
+        }
 
         // Compute constants `mark_bit` and `one_lap`.
         let mark_bit = (cap + 1).next_power_of_two();
